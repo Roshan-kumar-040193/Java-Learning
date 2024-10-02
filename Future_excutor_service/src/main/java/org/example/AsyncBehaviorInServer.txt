@@ -1,0 +1,129 @@
+In a **Spring Boot** application, the application server (like **Tomcat**, **Jetty**, or **Undertow**) manages the lifecycle of the application, including the handling of web requests and background tasks. Let's explore how the **application server** works with Spring Boot and what happens to background tasks like those using `CompletableFuture` when the main thread terminates.
+
+### 1. **App Server in Spring Boot**
+
+Spring Boot applications typically use an embedded server (e.g., Tomcat) to handle HTTP requests. When the application starts, the main thread (the one that runs the `SpringApplication.run()` method) initializes the application, loads the configuration, and starts the server. The application server manages the request-response lifecycle and the threads for handling HTTP requests.
+
+- The **main thread** starts the server, and the server keeps the JVM alive to handle incoming requests.
+- When the Spring Boot app starts, the server creates a **thread pool** that will process HTTP requests.
+
+#### Key points about the app server in Spring Boot:
+- The server is responsible for listening to incoming requests and delegating the processing of those requests to **worker threads**.
+- Even after the main thread has finished initialization (i.e., after `SpringApplication.run()` completes), the app server keeps running as long as there are tasks (like request handling or background processes) or until the JVM is explicitly stopped.
+
+### 2. **CompletableFuture in Spring Boot**
+`CompletableFuture` is part of Java’s `java.util.concurrent` package and allows asynchronous, non-blocking operations. It can be used in Spring Boot applications to offload heavy or long-running tasks from the main processing thread (typically, HTTP request handling threads).
+
+#### What happens when `CompletableFuture` is used in Spring Boot?
+- **Asynchronous task execution**: `CompletableFuture` allows you to execute tasks asynchronously, either in a separate thread or using a thread pool.
+- **Non-blocking**: Unlike the traditional `Future`, `CompletableFuture` can be chained with callbacks without blocking the main thread (like the request-handling thread).
+
+**Example**:
+```java
+@RestController
+public class MyController {
+
+    @GetMapping("/async")
+    public CompletableFuture<String> handleAsync() {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                // Simulate long-running task
+                Thread.sleep(5000);
+            } catch (InterruptedException e) {
+                throw new IllegalStateException(e);
+            }
+            return "Result after processing";
+        });
+    }
+}
+```
+
+In this example, when a user hits the `/async` endpoint, the method returns immediately, and the processing happens asynchronously in a separate thread, allowing the server to remain responsive.
+
+---
+
+### 3. **What Happens After the Main Thread Terminates?**
+
+#### Scenario 1: **Main Thread Termination After SpringApplication.run()**
+- The **main thread** in Spring Boot is responsible for starting the Spring application context, initializing beans, and starting the embedded application server.
+- Once the `SpringApplication.run()` completes, the **main thread terminates**.
+- **App Server Keeps Running**: The embedded server (like Tomcat) continues to run in its own thread (or thread pool), keeping the application alive and capable of processing requests.
+  - This is why you can continue making HTTP requests to a Spring Boot application even after the main thread has finished.
+
+#### Scenario 2: **Using CompletableFuture with App Server**
+
+Now, what happens when using `CompletableFuture` in a Spring Boot app and the **main thread** terminates?
+
+- **Asynchronous Tasks (CompletableFuture)**: Since the application server remains active, any background tasks using `CompletableFuture` will continue to run on separate threads.
+  - For example, when you invoke an endpoint that triggers a `CompletableFuture`, the HTTP request thread will return the result asynchronously while the task is executed in a separate thread pool (like `ForkJoinPool`).
+  - Even though the **main thread** (that started the application) has terminated, the **worker threads** used by `CompletableFuture` (either the default thread pool or a custom one) will continue processing the task.
+
+#### Example with a Custom Executor for CompletableFuture:
+```java
+@RestController
+public class AsyncController {
+
+    @GetMapping("/process")
+    public CompletableFuture<String> process() {
+        ExecutorService executor = Executors.newFixedThreadPool(5);
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                // Simulate long task
+                Thread.sleep(5000);
+            } catch (InterruptedException e) {
+                throw new IllegalStateException(e);
+            }
+            return "Processed in background!";
+        }, executor);
+    }
+}
+```
+
+Here:
+- The task will be handled asynchronously in a custom thread pool (`executor`), and it will continue even after the **main thread** has finished initializing the application.
+- The `CompletableFuture` continues to execute even if the **main thread** has finished because the app server keeps the application alive until it is explicitly stopped.
+
+---
+
+### 4. **What Happens When the Application Server Shuts Down?**
+
+If the application server shuts down or the JVM exits (e.g., due to a `SIGTERM` or manual shutdown):
+- **Thread Pools**: If you're using an **executor service** (like in `CompletableFuture.supplyAsync` with a custom executor), any pending or running tasks may be interrupted or terminated, depending on the configuration of the thread pool.
+  - For example, if you call `executor.shutdownNow()`, all ongoing tasks will be interrupted.
+- **Graceful Shutdown**: Spring Boot (starting with version 2.3) supports **graceful shutdown**. When the application is terminated, Spring Boot will attempt to complete all ongoing HTTP requests and background tasks before shutting down the application fully.
+  - During this shutdown process, pending `CompletableFuture` tasks may be allowed to complete, or they may be interrupted, depending on the configuration of the thread pool.
+
+---
+
+### **Key Points on CompletableFuture and App Server Behavior:**
+1. **Asynchronous Tasks**: Tasks using `CompletableFuture` run asynchronously in separate threads, independent of the main thread.
+2. **Main Thread Termination**: After the `SpringApplication.run()` completes, the main thread terminates, but the application server (and its thread pool) continues running, keeping the application alive for processing requests.
+3. **Tasks After Main Thread Terminates**: Asynchronous tasks started via `CompletableFuture` will continue running because the app server’s thread pool is still active, even though the main thread has terminated.
+4. **Shutdown Behavior**: If the server is shut down (gracefully or forcefully), all threads (including those used by `CompletableFuture`) will stop unless a graceful shutdown mechanism is in place to allow them to complete.
+
+---
+
+### Example Scenario:
+Consider a Spring Boot application where multiple users hit an endpoint that triggers a `CompletableFuture`. Even though the main thread finishes after starting the application, the server keeps running, allowing the `CompletableFuture` tasks to continue processing asynchronously.
+
+**Code Example**:
+```java
+@RestController
+public class AsyncProcessingController {
+
+    @GetMapping("/longTask")
+    public CompletableFuture<String> handleLongTask() {
+        // Start the asynchronous task
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                Thread.sleep(5000);  // Simulate long processing
+            } catch (InterruptedException e) {
+                throw new IllegalStateException(e);
+            }
+            return "Task Completed!";
+        });
+    }
+}
+```
+- Users can hit the `/longTask` endpoint, and `CompletableFuture` will process their requests asynchronously.
+- If the server is shut down gracefully, pending tasks will attempt to finish before termination.

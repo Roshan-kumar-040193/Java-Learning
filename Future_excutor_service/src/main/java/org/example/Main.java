@@ -19,8 +19,12 @@ public class Main {
         System.out.println("pre RunnableExampleWIthExecutor");
 //        RunnableExampleWIthExecutor r = new RunnableExampleWIthExecutor();
 //        r.testing();
-        ExecutionCompletionServiceExample executionCompletionServiceExample = new ExecutionCompletionServiceExample();
-        executionCompletionServiceExample.tesing();
+//        ExecutionCompletionServiceExample executionCompletionServiceExample = new ExecutionCompletionServiceExample();
+//        executionCompletionServiceExample.tesing();
+
+        BasicCompletableFutureExample cfe = new BasicCompletableFutureExample();
+        cfe.testing();
+        Thread.sleep(1000);
         System.out.println("post RunnableExampleWIthExecutor");//this executes before
 
 
