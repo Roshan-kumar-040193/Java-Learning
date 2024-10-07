@@ -14,7 +14,7 @@ public class PublishMessage {
     KafkaTemplate template;
 
     public void publishMessage(Object message){
-        CompletableFuture<SendResult<String, Object>> send = template.send("spring-producer", message);
+        CompletableFuture<SendResult<String, Object>> send = template.send("Spring-Topic-Auto", message);
         send.whenComplete((result,ex)->{
            if(ex!=null){
                System.out.println("found an exception : "+ex);
