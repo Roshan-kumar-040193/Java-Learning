@@ -22,10 +22,13 @@ public class Main {
 //        ExecutionCompletionServiceExample executionCompletionServiceExample = new ExecutionCompletionServiceExample();
 //        executionCompletionServiceExample.tesing();
 
-        BasicCompletableFutureExample cfe = new BasicCompletableFutureExample();
-        cfe.testing();
-        Thread.sleep(1000);
-        System.out.println("post RunnableExampleWIthExecutor");//this executes before
+//        BasicCompletableFutureExample cfe = new BasicCompletableFutureExample();
+//        cfe.testing();
+//        Thread.sleep(1000);
+//        System.out.println("post RunnableExampleWIthExecutor");//this executes before
+
+        ThenComposeAndThenCombine t = new ThenComposeAndThenCombine();
+        t.runTask();
 
 
     }

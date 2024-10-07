@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 
 @RestController
 public class PublishController {
@@ -16,7 +17,7 @@ public class PublishController {
     PublishMessage publish;
 
     @GetMapping("/publish/{message}")
-    public CompletableFuture<String> publishMessage(@PathVariable String message) {
+    public String publishMessage(@PathVariable String message) throws ExecutionException, InterruptedException {
         // Using CompletableFuture to run the message publishing loop asynchronously
         CompletableFuture<String> future = CompletableFuture.supplyAsync(() -> {
             int i = 0;
@@ -35,7 +36,7 @@ public class PublishController {
         });
 
         // Returning CompletableFuture in ResponseEntity
-        return future;
+        return future.get();
     }
 
     @GetMapping("/ping")
